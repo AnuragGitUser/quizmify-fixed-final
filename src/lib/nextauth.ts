@@ -1,3 +1,4 @@
+// src/lib/nextauth.ts
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import {
   getServerSession,
@@ -8,7 +9,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/db";
 
 /**
- * Extend Session to include user.id
+ * Module augmentation to add `id` to session.user
  */
 declare module "next-auth" {
   interface Session extends DefaultSession {
@@ -18,32 +19,31 @@ declare module "next-auth" {
   }
 }
 
+function ensureEnv(name: string) {
+  if (!process.env[name]) {
+    throw new Error(`Missing required env var ${name}`);
+  }
+  return process.env[name]!;
+}
+
+const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "";
+const NEXTAUTH_SECRET = process.env.NEXTAUTH_SECRET || "";
+
+// NOTE: We do NOT hard-code preview domains here. NextAuth will build the correct callback
+// using NEXTAUTH_URL; ensure that NEXTAUTH_URL is your stable production URL.
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
-
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-
-      /** ⭐ FIXED ⭐  
-       * This forces NextAuth to ALWAYS use your production redirect URL.
-       * Google will reject incorrect preview URLs.
-       */
-      authorization: {
-        params: {
-          redirect_uri:
-            process.env.NEXTAUTH_URL +
-            "/api/auth/callback/google",
-        },
-      },
+      clientId: ensureEnv("GOOGLE_CLIENT_ID"),
+      clientSecret: ensureEnv("GOOGLE_CLIENT_SECRET"),
+      // DO NOT hardcode preview URLs here. NextAuth will compute callback using NEXTAUTH_URL.
+      // The provider will accept the callback derived from NEXTAUTH_URL.
     }),
   ],
-
   session: {
     strategy: "jwt",
   },
-
   callbacks: {
     async session({ session, token }) {
       if (session.user) {
@@ -51,20 +51,20 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-
     async redirect({ url, baseUrl }) {
-      // Only allow redirects inside your domain
+      // Only allow same-origin redirects
       try {
         const to = new URL(url, baseUrl).toString();
         if (to.startsWith(baseUrl)) return to;
-      } catch (e) {
+      } catch {
         if (url.startsWith("/")) return `${baseUrl}${url}`;
       }
       return baseUrl;
     },
   },
-
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: ensureEnv("NEXTAUTH_SECRET"),
 };
 
-export const getAuthSession = () => getServerSession(authOptions);
+export const getAuthSession = () => {
+  return getServerSession(authOptions);
+};
