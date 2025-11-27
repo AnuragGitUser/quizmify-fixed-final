@@ -1,15 +1,15 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// prisma/schema.prisma
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider     = "mysql"
-  url          = env("DATABASE_URL")
-  relationMode = "prisma"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
+
+// ---------- NEXTAUTH MODELS ----------
 
 model Account {
   id                String  @id @default(cuid())
@@ -24,10 +24,10 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
-  @@index([userId])
 }
 
 model Session {
@@ -35,58 +35,39 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String     @id @default(cuid())
   name          String?
-  email         String?   @unique
+  email         String?    @unique
   emailVerified DateTime?
   image         String?
-  games         Game[]
-  accounts      Account[]
-  sessions      Session[]
+
+  accounts Account[]
+  sessions Session[]
+
+  // Add your custom fields below (if needed)
 }
 
-enum GameType {
-  mcq
-  open_ended
+model VerificationToken {
+  identifier String
+  token      String @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
-model Game {
-  id          String     @id @default(cuid())
-  userId      String
-  questions   Question[]
-  timeStarted DateTime
-  topic       String
-  timeEnded   DateTime?
-  gameType    GameType
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-model topic_count {
-  id    String @id @default(cuid())
-  topic String @unique
-  count Int
-}
+// ---------- YOUR CUSTOM QUIZ MODELS ----------
 
 model Question {
-  id                String   @id @default(cuid())
-  question          String
-  answer            String
-  gameId            String
-  options           Json? // for mcq questions
-  percentageCorrect Float? // for open_ended questions
-  isCorrect         Boolean? // for mcq questions
-  questionType      GameType
-  userAnswer        String?
-
-  game Game @relation(fields: [gameId], references: [id])
-
-  @@index([gameId])
+  id               String   @id @default(cuid())
+  questionType     String
+  question         String
+  answer           String
+  userAnswer       String?
+  isCorrect        Boolean?
+  percentageCorrect Int?
 }
