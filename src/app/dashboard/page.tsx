@@ -1,42 +1,40 @@
-import DetailsDialog from "@/components/DetailsDialog";
-import HistoryCard from "@/components/dashboard/HistoryCard";
-import HotTopicsCard from "@/components/dashboard/HotTopicsCard";
-import QuizMeCard from "@/components/dashboard/QuizMeCard";
-import RecentActivityCard from "@/components/dashboard/RecentActivityCard";
-import { getAuthSession } from "@/lib/nextauth";
-import { redirect } from "next/navigation";
-import React from "react";
+import { createClient } from "@/utils/supabase/server";
 
-type Props = {};
+export default async function DashboardPage() {
+  const supabase = createClient();
 
-export const metadata = {
-  title: "Dashboard | Quizzzy",
-  description: "Quiz yourself on anything!",
-};
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return <div>Please login</div>;
 
-const Dasboard = async (props: Props) => {
-  const session = await getAuthSession();
-  if (!session?.user) {
-    redirect("/");
+  const { data: questions, error } = await supabase
+    .from("Question")
+    .select("*")
+    .eq("userId", user.id)
+    .order("createdAt", { ascending: false });
+
+  if (error) {
+    console.error("Dashboard fetch error", error);
+    return <div>Error loading dashboard</div>;
   }
 
   return (
-    <main className="p-8 mx-auto max-w-7xl">
-      <div className="flex items-center">
-        <h2 className="mr-2 text-3xl font-bold tracking-tight">Dashboard</h2>
-        <DetailsDialog />
-      </div>
+    <div className="p-6">
+      <h1 className="text-3xl font-bold">Your Questions</h1>
 
-      <div className="grid gap-4 mt-4 md:grid-cols-2">
-        <QuizMeCard />
-        <HistoryCard />
-      </div>
-      <div className="grid gap-4 mt-4 md:grid-cols-2 lg:grid-cols-7">
-        <HotTopicsCard />
-        <RecentActivityCard />
-      </div>
-    </main>
+      {questions?.length === 0 && (
+        <p className="text-gray-500 mt-4">No questions yet.</p>
+      )}
+
+      <ul className="mt-4 space-y-4">
+        {questions?.map((q) => (
+          <li key={q.id} className="p-4 border rounded-lg">
+            <h2 className="font-semibold">{q.title}</h2>
+            <p className="text-sm text-gray-500">
+              Created: {new Date(q.createdAt).toLocaleString()}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
-};
-
-export default Dasboard;
+}
